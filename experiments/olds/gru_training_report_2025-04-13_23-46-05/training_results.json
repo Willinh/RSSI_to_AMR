@@ -1,0 +1,20 @@
+{
+    "model_type": "GRU",
+    "start_datetime": "2025-04-13_23-46-05",
+    "end_datetime": "2025-04-14_00-54-08",
+    "elapsed_time_seconds": 4082.861862897873,
+    "best_hyperparameters": {
+        "num_layers": 2,
+        "activation": "tanh",
+        "optimizer": "adam",
+        "dropout_rate": 0.2,
+        "units_layer_1": 128,
+        "units_layer_2": 128
+    },
+    "performance_multi_step": {
+        "mae": 0.9177761471333084,
+        "mse": 1.698628544738724,
+        "rmse": 1.303314445841342,
+        "r2": 0.9614583489287324
+    }
+}

@@ -1,0 +1,7 @@
+{
+    "num_layers": 1,
+    "activation": "tanh",
+    "optimizer": "rmsprop",
+    "dropout_rate": 0.2,
+    "units_layer_1": 32
+}

@@ -1,0 +1,52 @@
+=============================================================================================
+Analise dados rssi_odom_dataset_11apr25_ajust.csv
+
+linha 000002 start A - 1744397085.760; (inicio - Friday, Apr 11, 2025 06:44:45.760 PM)
+linha 003870 stop  A - 1744397132.962; (quebra - Friday, Apr 11, 2025 06:45:32.962 PM) 
+tempo série de dados A = 0m47s
+
+linha 003870 start B - 1744397155.073; (quebra - Friday, Apr 11, 2025 06:45:55.073 PM)
+linha 013080 stop  B - 1744397266.011; (quebra - Friday, Apr 11, 2025 06:47:46.011 PM)
+tempo série de dados B = 1m51s
+
+linha 013081 start C - 1744397593.300; (quebra - Friday, Apr 11, 2025 06:53:13.300 PM)
+linha 053398 stop  C - 1744398078.016; (quebra - Friday, Apr 11, 2025 07:01:18.016 PM)
+tempo série de dados C = 8m05s
+
+linha 053399 start D - 1744399736.673; (quebra - Friday, Apr 11, 2025 07:28:56.673 PM) 
+linha 054059 stop  D - 1744399744.809; (fim    - Friday, Apr 11, 2025 07:29:04.809 PM) 
+tempo série de dados D = 0m8s 
+
+isolada a série C
+40319 linhas de dados
+
+
+========================================================================================
+Analise dados rssi_odom_dataset_12apr25_ajust.csv
+
+linha 000002 start E - 1744397085.760; (inicio  Friday, Apr 11, 2025 06:44:45.760 PM)
+linha 003870 stop  E - 1744397132.962; (quebra - Friday, Apr 11, 2025 06:45:32.962 PM)
+tempo série de dados E =  0m47s
+
+linha 003871 start F - 1744397155.073; (quebra - Friday, Apr 11, 2025 06:45:55.073 PM)
+linha 013080 stop  F - 1744397266.011; (quebra - Friday, Apr 11, 2025 06:47:46.011 PM)
+tempo série de dados F =  1m51s
+
+linha 013081 start G - 1744397593.300; (quebra - Friday, Apr 11, 2025 06:53:13.300 PM)
+linha 053398 stop  G - 1744398078.016; (quebra - Friday, Apr 11, 2025 07:01:18.016 PM)
+tempo série de dados G = 8m05s
+
+linha 053399 start H - 1744399736.673; (quebra - Friday, Apr 11, 2025 07:28:56.673 PM)
+linha 054060 stop  H - 1744399744.819; (quebra - Friday, Apr 11, 2025 07:29:04.819 PM)
+tempo série de dados H = 0m08s
+
+linha 054061 start I - 1744464154.933; (quebra - Saturday, Apr 12, 2025 01:22:34.933 PM)
+linha 054173 stop  I - 1744464156.493; (quebra - Saturday, Apr 12, 2025 01:22:36.493 PM)
+tempo série de dados I = 2s
+
+linha 054174 start J - 1744464597.710; (quebra - Saturday, Apr 12, 2025 01:29:57.710 PM)
+linha 085270 stop  J - 1744464971.414; (Fim    - Saturday, Apr 12, 2025 01:36:11.414 PM)
+tempo série de dados J = 6m14s
+
+isolada a série J
+31098 linhas de dados

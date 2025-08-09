@@ -1,0 +1,29 @@
+{
+    "dataset_name": "rssi_odom_dataset_1204.parquet",
+    "Sequencing": {
+        "timesteps": 30,
+        "batch_size": 128
+    },
+    "Model Hyperparameters": {
+        "min_units": 32,
+        "max_units": 128,
+        "units_step": 32,
+        "dropout_min": 0.2,
+        "dropout_max": 0.3,
+        "dropout_step": 0.1,
+        "activation_functions": [
+            "tanh",
+            "relu",
+            "elu"
+        ],
+        "optimizers": [
+            "adam",
+            "rmsprop",
+            "Nadam"
+        ]
+    },
+    "Tuning": {
+        "max_epochs": 100,
+        "hyperband_iterations": 3
+    }
+}
