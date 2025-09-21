@@ -1,0 +1,32 @@
+{
+    "training_dataset": "rssi_odom_dataset_12apr25_isolado.parquet",
+    "experiment_dataset": "rssi_odom_dataset_11apr25_isolado.parquet",
+    "forecast_steps": 36,
+    "params": {
+        "model_type": "GRU",
+        "group_sec": 80,
+        "timesteps_orig": 60,
+        "batch_size": 256,
+        "min_units": 200,
+        "max_units": 260,
+        "units_step": 20,
+        "dropout_min": 0.2,
+        "dropout_max": 0.3,
+        "dropout_step": 0.1,
+        "activation_functions": [
+            "elu"
+        ],
+        "optimizers": [
+            "rmsprop"
+        ],
+        "min_layers": 1,
+        "max_layers": 1,
+        "max_epochs": 50,
+        "hyperband_iterations": 3,
+        "group_msec": 80,
+        "samples_per_sec": 12,
+        "forecast_horizon_sec": 3,
+        "forecast_steps": 36,
+        "timesteps": 60
+    }
+}

@@ -1,0 +1,32 @@
+{
+    "training_dataset": "rssi_odom_dataset_11apr25_isolado.parquet",
+    "experiment_dataset": "rssi_odom_dataset_12apr25_isolado.parquet",
+    "forecast_steps": 120,
+    "params": {
+        "model_type": "LSTM",
+        "group_sec": 80,
+        "timesteps_orig": 60,
+        "batch_size": 256,
+        "min_units": 16,
+        "max_units": 128,
+        "units_step": 16,
+        "dropout_min": 0.2,
+        "dropout_max": 0.3,
+        "dropout_step": 0.1,
+        "activation_functions": [
+            "elu"
+        ],
+        "optimizers": [
+            "rmsprop"
+        ],
+        "min_layers": 1,
+        "max_layers": 2,
+        "max_epochs": 150,
+        "hyperband_iterations": 3,
+        "group_msec": 80,
+        "samples_per_sec": 12,
+        "forecast_horizon_sec": 10,
+        "forecast_steps": 120,
+        "timesteps": 60
+    }
+}

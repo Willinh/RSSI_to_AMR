@@ -1,8 +1,0 @@
-{
-    "num_layers": 2,
-    "activation": "tanh",
-    "optimizer": "adam",
-    "dropout_rate": 0.2,
-    "units_layer_1": 112,
-    "units_layer_2": 160
-}

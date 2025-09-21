@@ -1,49 +1,52 @@
-import os
-import json
-import shutil
-from typing import Any
-import pandas as pd
-import numpy as np
-import tensorflow as tf
-import keras_tuner as kt
-import tensorflow.keras.backend as K
 import gc
+import json
+import os
+import shutil
 import time
 from datetime import datetime
+from typing import Any
+
+import keras_tuner as kt
+import numpy as np
+import tensorflow as tf
+import tensorflow.keras.backend as K
+from keras_tuner.src.backend import keras
 from numpy import ndarray, dtype
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from utils import import_dataset, calc_dataset_params,estimate_dt_ms, print_progress_bar, GROUP_MSEC, TRAINING_DATASET_PATH, EXPERIMENT_DATASET_PATH
-from keras_tuner.src.backend import keras
+
+from utils import import_dataset, calc_dataset_params, print_progress_bar, GROUP_MSEC, TRAINING_DATASET_PATH, \
+    EXPERIMENT_DATASET_PATH
 
 # ========================== CONFIGURAÇÕES ==========================
 
-MODEL_TYPE = 'LSTM'   # 'LSTM' ou 'GRU' ou 'BiLSTM' ou 'BiGRU' ou 'SimpleRNN'
+MODEL_TYPE = 'GRU'   # 'LSTM' ou 'GRU' ou 'BiLSTM' ou 'BiGRU' ou 'SimpleRNN'
 # Sequenciamento dos dados
 TIMESTEPS_ORIG = 60   # Número de passos de tempo para olhar para trás (default = 60)
-BATCH_SIZE = 256      # Tamanho do batch durante o treino
+BATCH_SIZE = 8192      # Tamanho do batch durante o treino
 
 # Hiperparâmetros do Modelo
 MIN_UNITS = 16      # Número mínimo de unidades por camada
-MAX_UNITS = 64     # Número máximo de unidades por camada
+MAX_UNITS = 256     # Número máximo de unidades por camada
 UNITS_STEP = 16       # Passo de incremento de unidades testadas
 DROPOUT_MIN = 0.2     # Dropout mínimo considerado
 DROPOUT_MAX = 0.3     # Dropout máximo considerado
 DROPOUT_STEP = 0.1    # Incremento do dropout considerado
 
 # Funções e Otimizadores
-ACTIVATION_FUNCTIONS = ['elu']  # Funções de ativação possíveis: ['tanh', 'relu', 'elu']
-OPTIMIZERS = ['rmsprop']   # Otimizadores possíveis: ['adam', 'rmsprop', 'Nadam']
+ACTIVATION_FUNCTIONS = ['tanh', 'relu', 'elu']  # Funções de ativação possíveis: ['tanh', 'relu', 'elu']
+OPTIMIZERS = ['adam', 'rmsprop', 'Nadam']   # Otimizadores possíveis: ['adam', 'rmsprop', 'Nadam']
 
 # Estrutura da Rede
 MIN_LAYERS = 1        # Número mínimo de camadas
-MAX_LAYERS = 5        # Número máximo de camadas [default = 2]
+MAX_LAYERS = 2        # Número máximo de camadas [default = 2]
 
 # Tuning
-MAX_EPOCHS = 50   # Número máximo de épocas no treinamento (20 ou 50 ou 100, 150)
+MAX_EPOCHS = 50   # Número máximo de épocas no treinamento (20, 50, 100, 150)
 HYPERBAND_ITERATIONS = 3  # Número de iterações no Hyperband Tuner
 
 # Previsão Multi-Step
-FORECAST_HORIZON_SEC = 3          # quero prever X segundos à frente
+FORECAST_HORIZON_SEC = 4          # quero prever X segundos à frente
+
 # ------------------ derivar parâmetros dependentes -------------------------
 #   amostras por segundo depois do down-sample
 SAMPLES_PER_SEC = max(1, 1000 // GROUP_MSEC)      # int; p.ex. 1000/100 = 10 Hz → 10
@@ -66,6 +69,7 @@ full_path = os.path.join(TUNER_DIRECTORY, PROJECT_NAME)
 #       f"→  TIMESTEPS={TIMESTEPS}")
 
 # Calcula parâmetros para o dataset de treino
+TIMESTEPS_train: int
 deltaT_MS_train, samples_per_win_train, TIMESTEPS_train = calc_dataset_params(
     TRAINING_DATASET_PATH, TIMESTEPS_ORIG, GROUP_MSEC
 )

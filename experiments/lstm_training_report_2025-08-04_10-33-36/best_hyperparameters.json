@@ -1,8 +1,0 @@
-{
-    "num_layers": 2,
-    "activation": "relu",
-    "optimizer": "rmsprop",
-    "dropout_rate": 0.2,
-    "units_layer_1": 272,
-    "units_layer_2": 448
-}

@@ -1,18 +1,19 @@
-from tkinter.constants import NUMERIC
 import os
 import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt
 import time
-from datetime import datetime
 import sys
 
-TRAINING_DATASET_PATH = r'C:\\Users\\admpdi\\OneDrive - ISI SIM\\Documents\\GitHub\\RSSI-to-AMR\\data\\rssi_odom_dataset_11apr25_isolado.parquet'
-EXPERIMENT_DATASET_PATH = r'C:\\Users\\admpdi\\OneDrive - ISI SIM\\Documents\\GitHub\\RSSI-to-AMR\\data\\rssi_odom_dataset_12apr25_isolado.parquet'
+# TRAINING_DATASET_PATH = r'C:\\Users\\admpdi\\OneDrive - ISI SIM\\Documents\\GitHub\\RSSI-to-AMR\\data\\rssi_odom_dataset_11apr25_isolado.parquet'
+# EXPERIMENT_DATASET_PATH = r'C:\\Users\\admpdi\\OneDrive - ISI SIM\\Documents\\GitHub\\RSSI-to-AMR\\data\\rssi_odom_dataset_12apr25_isolado.parquet'
 # DATASET_PATH = r'C:\\Users\\admpdi\\OneDrive - ISI SIM\\Documents\\GitHub\\RSSI-to-AMR\\data\\rssi_odom_dataset_12apr25_ajust.parquet'
-GROUP_MSEC = 80               # agrupa timesteps por valor de milissegundo informado
-# TX_POS = (-1.0, 1.0, 0.0)          # <<< coordenadas do AP em metros  (ajuste!)
+TRAINING_DATASET_PATH = r'C:\\Users\\Micro\\Documents\\RSSI_to_AMR\\data\\rssi_odom_dataset_11apr25_isolado.parquet'
+EXPERIMENT_DATASET_PATH = r'C:\\Users\\Micro\\Documents\\RSSI_to_AMR\\data\\rssi_odom_dataset_12apr25_isolado.parquet'
+GROUP_MSEC = 100  # agrupa timesteps por valor de milissegundo informado
+
+
+# TX_POS = (-1.0, 1.0, 0.0)          # <<< coordenadas do AP em metros (ajuste!)
 
 def import_raw_data(file_path: str, debug: bool = False):
     df = pd.read_parquet(file_path, engine="fastparquet")
@@ -28,23 +29,23 @@ def import_raw_data(file_path: str, debug: bool = False):
               'position_x', 'position_y', 'position_z', 'time[s]']:
         df[c] = pd.to_numeric(df[c], errors='coerce')
     df = (df.dropna(subset=['time[s]', 'serving_cell_rssi_1'])
-             .sort_values('time[s]'))
+          .sort_values('time[s]'))
 
     # — agrupar por segundos inteiros —
     df['time_ms'] = df['time[s]']
     df['sec'] = (df['time_ms'] // GROUP_MSEC).astype(int)
 
     agg = {
-        'time[s]': 'first',                 # início do segundo
-        'serving_cell_rssi_1': 'mean',      # média no segundo
-        'serving_cell_snr_1':  'mean',
-        'position_x':          'mean',
-        'position_y':          'mean',
-        'position_z':          'mean'
+        'time[s]': 'first',  # início do segundo
+        'serving_cell_rssi_1': 'mean',  # média no segundo
+        'serving_cell_snr_1': 'mean',
+        'position_x': 'mean',
+        'position_y': 'mean',
+        'position_z': 'mean'
     }
     df_down = (df.groupby('sec', as_index=False)
-                 .agg(agg)
-                 .reset_index(drop=True))
+               .agg(agg)
+               .reset_index(drop=True))
 
     meta.update({
         "down_len": len(df_down),
@@ -53,7 +54,7 @@ def import_raw_data(file_path: str, debug: bool = False):
     })
 
     df_down[['time[s]', 'serving_cell_rssi_1', 'serving_cell_snr_1',
-                    'position_x', 'position_y', 'position_z']]
+             'position_x', 'position_y', 'position_z']]
 
     print("Antes:", meta['orig_len'], "→ Depois:", meta['down_len'])
 
@@ -61,6 +62,7 @@ def import_raw_data(file_path: str, debug: bool = False):
         return df_down, meta
     else:
         return df_down
+
 
 # def add_distance_cols(df: pd.DataFrame,
 #                       tx_pos: tuple[float, float, float] = TX_POS):
@@ -109,6 +111,7 @@ def import_dataset(file_path: str, split_train_val_test=True):
     dataset_name = os.path.basename(file_path)
     return scaler, train_df, val_df, test_df, dataset_name, meta
 
+
 def estimate_dt_ms(parquet_path, n_rows=2000):
     df_tmp = pd.read_parquet(parquet_path, columns=['time[s]'], engine='fastparquet')
     dt = np.diff(df_tmp['time[s]'].head(n_rows))
@@ -124,6 +127,7 @@ def format_elapsed_time(start_time):
 
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
+
 # === Função para imprimir progress bar ===
 def print_progress_bar(current, total, start_time, length=30, every=100):
     if current % every and current != total:
@@ -137,6 +141,7 @@ def print_progress_bar(current, total, start_time, length=30, every=100):
         f'\rProgress: |{bar}| {percent:.0%} | Elapsed Time: {elapsed}'
     )
     sys.stdout.flush()
+
 
 def calc_dataset_params(file_path, timesteps_orig, group_msec):
     """Calcula parâmetros derivados do dataset após downsampling."""
