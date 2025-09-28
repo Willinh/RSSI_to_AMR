@@ -14,8 +14,11 @@ from keras_tuner.src.backend import keras
 from numpy import ndarray, dtype
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-from utils import import_dataset, calc_dataset_params, print_progress_bar, GROUP_MSEC, TRAINING_DATASET_PATH, \
-    EXPERIMENT_DATASET_PATH
+import utils as U
+from utils import import_dataset, calc_dataset_params, print_progress_bar, TRAINING_DATASET_PATH, EXPERIMENT_DATASET_PATH
+import argparse, subprocess, sys, glob
+import pandas as pd
+GROUP_MSEC = getattr(U, "GROUP_MSEC", 100)
 
 # ========================== CONFIGURAÇÕES ==========================
 
@@ -23,6 +26,8 @@ MODEL_TYPE = 'GRU'   # 'LSTM' ou 'GRU' ou 'BiLSTM' ou 'BiGRU' ou 'SimpleRNN'
 # Sequenciamento dos dados
 TIMESTEPS_ORIG = 60   # Número de passos de tempo para olhar para trás (default = 60)
 BATCH_SIZE = 8192      # Tamanho do batch durante o treino
+
+
 
 # Hiperparâmetros do Modelo
 MIN_UNITS = 16      # Número mínimo de unidades por camada
@@ -47,6 +52,56 @@ HYPERBAND_ITERATIONS = 3  # Número de iterações no Hyperband Tuner
 # Previsão Multi-Step
 FORECAST_HORIZON_SEC = 4          # quero prever X segundos à frente
 
+def _apply_overrides_from_env():
+    """Lê variáveis de ambiente e substitui as configs antes de calcular dependentes."""
+    global MODEL_TYPE, TIMESTEPS_ORIG, BATCH_SIZE
+    global MIN_UNITS, MAX_UNITS, UNITS_STEP, MAX_EPOCHS
+    global FORECAST_HORIZON_SEC, GROUP_MSEC
+
+    # modelo
+    MODEL_TYPE = os.getenv("PARAM_MODEL", MODEL_TYPE)
+
+    # janela original em passos (antes do downsample)
+    v = os.getenv("PARAM_TIMESTEPS_ORIG")
+    if v: TIMESTEPS_ORIG = int(v)
+
+    # batch size
+    v = os.getenv("PARAM_BATCH")
+    if v: BATCH_SIZE = int(v)
+
+    # epochs (máx com early stopping)
+    v = os.getenv("PARAM_EPOCHS")
+    if v: MAX_EPOCHS = int(v)
+
+    # horizonte em segundos
+    v = os.getenv("PARAM_SECONDS")
+    if v: FORECAST_HORIZON_SEC = float(v)
+
+    # group_msec (downsample)
+    v = os.getenv("PARAM_GROUP_MSEC")
+    if v:
+        GROUP_MSEC = int(v)
+        # garantir que o utils vai usar o novo valor no import_raw_data
+        if hasattr(U, "set_group_msec"):
+            U.set_group_msec(GROUP_MSEC)
+        else:
+            U.GROUP_MSEC = GROUP_MSEC
+
+    # units (formato "min-max:step", ex: "16-256:16")
+    u = os.getenv("PARAM_UNITS_RANGE")
+    if u and "-" in u and ":" in u:
+        try:
+            mm, step = u.split(":")
+            mn, mx = mm.split("-")
+            MIN_UNITS  = int(mn)
+            MAX_UNITS  = int(mx)
+            UNITS_STEP = int(step)
+        except Exception:
+            pass
+
+_apply_overrides_from_env()
+
+
 # ------------------ derivar parâmetros dependentes -------------------------
 #   amostras por segundo depois do down-sample
 SAMPLES_PER_SEC = max(1, 1000 // GROUP_MSEC)      # int; p.ex. 1000/100 = 10 Hz → 10
@@ -57,16 +112,198 @@ TIMESTEPS      = max(1, TIMESTEPS_ORIG // (GROUP_MSEC or 1))
 # Organização de Pastas
 FORCE_RESTART = True  # Se True, apaga diretório do tuner antes de novo teste
 TUNER_DIRECTORY = 'my_dir'
-PROJECT_NAME = f'{MODEL_TYPE.lower()}_hyperparameter_tuning'
+PROJECT_NAME = (
+    f"{MODEL_TYPE.lower()}__{GROUP_MSEC}ms__{int(FORECAST_HORIZON_SEC)}s__"
+    f"ts{TIMESTEPS_ORIG}__ep{MAX_EPOCHS}__b{BATCH_SIZE}__u{MIN_UNITS}-{MAX_UNITS}s{UNITS_STEP}"
+)
+PROJECT_NAME = PROJECT_NAME.replace(":", "-").replace("/", "-").replace("\\", "-")
 full_path = os.path.join(TUNER_DIRECTORY, PROJECT_NAME)
 
 # ====================================================================
 
-# deltaT_MS = estimate_dt_ms(DATASET_PATH)           # e.g. 95.4 ms
-# samples_per_win = max(1, GROUP_MSEC / deltaT_MS)
-# TIMESTEPS = max(1, int(TIMESTEPS_ORIG / samples_per_win))
-# print(f"Δt≈{deltaT_MS:.1f} ms  ·  samples/window≈{samples_per_win:.2f}  "
-#       f"→  TIMESTEPS={TIMESTEPS}")
+def _find_plan_csv(user_path: str | None = None) -> str:
+    if user_path and os.path.exists(user_path):
+        return user_path
+    # tenta achar algo como "Plano_de_Testes_2DS_*.csv" na pasta do script
+    here = os.path.dirname(os.path.abspath(__file__))
+    patterns = [
+        "Plano_de_Testes_2DS_faltantes.csv",
+        # "Plano_de_Testes_2DS_todas_combinacoes.csv",
+        # "*Plano_de_Testes_2DS*combinacoes*.csv",
+        "*Plano_de_Testes_2DS_DoE.csv"
+        # "*Plano*2DS*csv"
+    ]
+    for p in patterns:
+        hits = glob.glob(os.path.join(here, p))
+        if hits:
+            return hits[0]
+    raise FileNotFoundError("CSV do plano de testes não encontrado. Informe com --plan <arquivo.csv>.")
+
+def _autorun_loop(plan_csv: str):
+    print(f"[AUTORUN] Usando plano: {plan_csv}")
+    df = pd.read_csv(plan_csv)
+
+    # normaliza nomes esperados
+    colmap = {
+        "Modelo": "PARAM_MODEL",
+        "Resample (ms)": "PARAM_GROUP_MSEC",
+        "Seconds to predict (s)": "PARAM_SECONDS",
+        "Timesteps": "PARAM_TIMESTEPS_ORIG",
+        "Epochs": "PARAM_EPOCHS",
+        "Units (min-max:step)": "PARAM_UNITS_RANGE",
+        "Batchsize": "PARAM_BATCH",
+        "Feito?": "Feito?"
+    }
+    for k in colmap:
+        if k not in df.columns:
+            raise KeyError(f"Coluna obrigatória ausente no CSV: {k}")
+
+    total = len(df)
+    for idx, row in df.iterrows():
+        status = str(row["Feito?"]).strip().upper()
+        if status == "OK":
+            continue  # já feito
+
+        # prepara ambiente com os parâmetros da linha
+        env = os.environ.copy()
+        for csv_col, env_var in colmap.items():
+            if env_var == "Feito?":
+                continue
+            val = row[csv_col]
+            if pd.isna(val):
+                continue
+            env[env_var] = str(int(val)) if isinstance(val, (int, float)) and float(val).is_integer() else str(val)
+
+        print(f"[AUTORUN] Rodando {idx+1}/{total}: "
+              f"{row['Modelo']} | {row['Resample (ms)']} ms | {row['Seconds to predict (s)']} s | "
+              f"ts={row['Timesteps']} | ep={row['Epochs']} | units={row['Units (min-max:step)']} | "
+              f"batch={row['Batchsize']}")
+
+        # chama um subprocesso do próprio main.py (SEM --autorun) para rodar 1 experimento
+        proc = subprocess.run([sys.executable, os.path.abspath(__file__)], env=env)
+
+        if proc.returncode == 0:
+            df.at[idx, "Feito?"] = "OK"
+            df.to_csv(plan_csv, index=False)  # checkpoint a cada sucesso
+            print(f"[AUTORUN] ✅ Concluído e marcado OK (linha {idx+1}).")
+        else:
+            print(f"[AUTORUN] ❌ Falha (linha {idx+1}). Mantendo sem OK para retomar depois.")
+
+    print("[AUTORUN] Fim da fila.")
+
+# ---- gate para modo autorun (sai antes de iniciar o treino normal) ----
+if "--autorun" in sys.argv:
+    try:
+        # parse opcional do caminho do CSV
+        try:
+            pidx = sys.argv.index("--plan")
+            plan_path = sys.argv[pidx + 1]
+        except ValueError:
+            plan_path = None
+        _autorun_loop(_find_plan_csv(plan_path))
+        sys.exit(0)
+    except Exception as e:
+        print(f"[AUTORUN] Erro: {e}")
+        sys.exit(2)
+
+RESULTS_CSV = os.path.join("experiments", "results_summary_2DS.csv")
+
+def _safe(x, default=None):
+    return x if x is not None else default
+
+def append_results_row(experiment_folder: str, config: dict, results: dict, best_hps_dict: dict):
+    os.makedirs(os.path.dirname(RESULTS_CSV), exist_ok=True)
+
+    params = config.get("params", {})
+    rec   = results.get("performance_recursive", {})
+    recps = rec.get("recursive_errors_per_step", {})
+    step1 = 0
+    stepN = (results.get("forecast_steps", 1) - 1) if results.get("forecast_steps") else 0
+    rec_den = results.get("performance_recursive_denorm", {}) or {}
+    step1den = rec_den.get("step1", {}) or {}
+    stepNden = rec_den.get("stepN", {}) or {}
+
+    row = {
+        # identificação
+        "experiment_folder": experiment_folder,
+        "model": results.get("model_type"),
+        "train_dataset": results.get("dataset_name", {}).get("training"),
+        "exp_dataset": results.get("dataset_name", {}).get("experiment"),
+        "start_training": results.get("start_datetime_training"),
+        "end_training": results.get("end_datetime_training"),
+        "train_time_s": results.get("training_elapsed_time_seconds"),
+        "start_pred": results.get("start_datetime_predictions"),
+        "end_pred": results.get("end_datetime_predictions"),
+        "pred_time_s": results.get("predictions_elapsed_time_seconds"),
+
+        # parâmetros de tarefa
+        "group_msec": params.get("group_msec"),
+        "seconds_ahead": params.get("forecast_horizon_sec"),
+        "forecast_steps": params.get("forecast_steps"),
+        "timesteps_orig": params.get("timesteps_orig"),
+        "timesteps_train": results.get("dataset_params", {}).get("training", {}).get("timesteps"),
+        "timesteps_test": results.get("dataset_params", {}).get("experiment", {}).get("timesteps"),
+        "batch_size": params.get("batch_size"),
+        "units_range": f"{params.get('min_units')}-{params.get('max_units')}:{params.get('units_step')}",
+
+        # melhores HPs
+        "best_layers": best_hps_dict.get("num_layers"),
+        "best_activation": best_hps_dict.get("activation"),
+        "best_optimizer": best_hps_dict.get("optimizer"),
+        "best_dropout": best_hps_dict.get("dropout_rate"),
+        "best_units_l1": best_hps_dict.get("units_layer_1"),
+        "best_units_l2": best_hps_dict.get("units_layer_2"),
+
+        # métricas “direct multi-output” (performance_normal)
+        "direct_mae": results.get("performance_normal", {}).get("mae"),
+        "direct_mse": results.get("performance_normal", {}).get("mse"),
+        "direct_rmse": results.get("performance_normal", {}).get("rmse"),
+        "direct_r2": results.get("performance_normal", {}).get("r2"),
+
+        # métricas multi-step agregadas (recursive)
+        "multi_mae": rec.get("mae"),
+        "multi_mse": rec.get("mse"),
+        "multi_rmse": rec.get("rmse"),
+        "multi_r2": rec.get("r2"),
+
+        # por passo (úteis na análise): 1º e último passo
+        "step1_mae": _safe(recps.get("mae", [None])[step1]),
+        "step1_rmse": _safe(recps.get("rmse", [None])[step1]),
+        "step1_r2": _safe(recps.get("r2", [None])[step1]),
+        "stepN_mae": _safe(recps.get("mae", [None])[stepN]),
+        "stepN_rmse": _safe(recps.get("rmse", [None])[stepN]),
+        "stepN_r2": _safe(recps.get("r2", [None])[stepN]),
+
+        # progresso do tuner
+        "tuner_trials": results.get("tuning_info", {}).get("executed_trials"),
+        "tuner_max_trials": results.get("tuning_info", {}).get("max_trials"),
+
+        # métricas multi-step desscaladas (dBm) - all steps + passo 1 e passo N
+        "multi_mae_den": rec_den.get("mae"),
+        "multi_mse_den": rec_den.get("mse"),
+        "multi_rmse_den": rec_den.get("rmse"),
+        "multi_r2_den": rec_den.get("r2"),
+
+        "step1_mae_den": step1den.get("mae"),
+        "step1_mse_den": step1den.get("mse"),
+        "step1_rmse_den": step1den.get("rmse"),
+        "step1_r2_den": step1den.get("r2"),
+
+        "stepN_mae_den": stepNden.get("mae"),
+        "stepN_mse_den": stepNden.get("mse"),
+        "stepN_rmse_den": stepNden.get("rmse"),
+        "stepN_r2_den": stepNden.get("r2"),
+
+    }
+
+    df_row = pd.DataFrame([row])
+    if os.path.exists(RESULTS_CSV):
+        df_row.to_csv(RESULTS_CSV, mode="a", header=False, index=False)
+    else:
+        df_row.to_csv(RESULTS_CSV, index=False)
+    print(f"[INFO] Linha acrescentada em {RESULTS_CSV}")
+
+
 
 # Calcula parâmetros para o dataset de treino
 TIMESTEPS_train: int
@@ -375,6 +612,31 @@ errors_per_step = {
 
 print()  # pular linha após finalização da barra
 
+# --- MÉTRICAS MULTI-STEP DESSCALADAS (all steps + step1 + stepN) ---
+# Usa o mesmo inversor que você já definiu acima:
+# inverse_scale = lambda x: x * (max_rssi - min_rssi) + min_rssi
+
+y_test_den = inverse_scale(y_test)
+preds_full_den = inverse_scale(preds_full)
+
+# all steps combinados (comparável ao bloco "Direct", agora em dBm)
+multi_mae_den  = mean_absolute_error(y_test_den.ravel(), preds_full_den.ravel())
+multi_mse_den  = mean_squared_error(y_test_den.ravel(), preds_full_den.ravel())
+multi_rmse_den = np.sqrt(multi_mse_den)
+multi_r2_den   = r2_score(y_test_den.ravel(), preds_full_den.ravel())
+
+# primeiro passo (comparável ao one-step-ahead)
+step1_mae_den  = mean_absolute_error(y_test_den[:, 0], preds_full_den[:, 0])
+step1_mse_den  = mean_squared_error(y_test_den[:, 0], preds_full_den[:, 0])
+step1_rmse_den = np.sqrt(step1_mse_den)
+step1_r2_den   = r2_score(y_test_den[:, 0], preds_full_den[:, 0])
+
+# último passo
+stepN_mae_den  = mean_absolute_error(y_test_den[:, -1], preds_full_den[:, -1])
+stepN_mse_den  = mean_squared_error(y_test_den[:, -1], preds_full_den[:, -1])
+stepN_rmse_den = np.sqrt(stepN_mse_den)
+stepN_r2_den   = r2_score(y_test_den[:, -1], preds_full_den[:, -1])
+
 
 recursive_predictions = np.array(recursive_predictions)
 true_future_values = np.array(true_future_values)
@@ -462,6 +724,25 @@ results = {
     }
 }
 
+results["performance_recursive_denorm"] = {
+    "mae":  multi_mae_den,
+    "mse":  multi_mse_den,
+    "rmse": multi_rmse_den,
+    "r2":   multi_r2_den,
+    "step1": {
+        "mae":  step1_mae_den,
+        "mse":  step1_mse_den,
+        "rmse": step1_rmse_den,
+        "r2":   step1_r2_den
+    },
+    "stepN": {
+        "mae":  stepN_mae_den,
+        "mse":  stepN_mse_den,
+        "rmse": stepN_rmse_den,
+        "r2":   stepN_r2_den
+    }
+}
+
 
 results["tuning_info"] = {
     "executed_trials": executed_trials,
@@ -499,6 +780,18 @@ with open(os.path.join(experiment_folder, 'training_results.json'), 'w') as f:
     json.dump(results, f, indent=4)
 
 print(f"[INFO] Treinamento finalizado e arquivos salvos em {experiment_folder}")
+
+# --- Acrescenta linha no CSV-mestre ---
+append_results_row(experiment_folder, config, results, best_hps_dict)
+
+# --- Gera PDF do experimento (sem refazer previsões) ---
+try:
+    from report_generator import generate_report_pdf
+    pdf_path = generate_report_pdf(experiment_folder)
+    print(f"[INFO] PDF gerado: {pdf_path}")
+except Exception as e:
+    print(f"⚠️  Falha ao gerar PDF: {e}")
+
 
 # Envio de notificação
 from pushbullet import Pushbullet

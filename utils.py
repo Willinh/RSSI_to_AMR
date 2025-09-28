@@ -63,6 +63,10 @@ def import_raw_data(file_path: str, debug: bool = False):
     else:
         return df_down
 
+# --- setter opcional para atualizar o GROUP_MSEC em runtime ---
+def set_group_msec(value: int) -> None:
+    global GROUP_MSEC
+    GROUP_MSEC = int(value)
 
 # def add_distance_cols(df: pd.DataFrame,
 #                       tx_pos: tuple[float, float, float] = TX_POS):
