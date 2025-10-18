@@ -18,12 +18,12 @@ Edite SOMENTE esta seção logo abaixo antes de rodar:
 # ===================== CONFIGURAÇÃO DO USUÁRIO =====================
 # Caminhos/Globs para arquivos de resultados (CSV e/ou XLSX). Pode ser múltiplo, separados por vírgula.
 # Exemplo Windows (use string raw r"..."): r"C:\...\Resultados.xlsx"
-DEFAULT_INPUTS = r"C:\Users\Micro\Documents\RSSI_to_AMR\experiments_archive\Exp_2DS_DS11_288Tests_autorun\Resultados_Testes_2DS_DoE_full_288.xlsx"  # <<-- PREENCHER: ex.: r"C:\Users\...\Resultados_Testes_2DS_DoE_full_288.xlsx"
+DEFAULT_INPUTS = r"C:\Users\Micro\Documents\RSSI_to_AMR\DoE\data\Resultado_experimentos_RSSI_Z-Score_BigDS.xlsx"  # <<-- PREENCHER: ex.: r"C:\Users\...\Resultados_Testes_2DS_DoE_full_288.xlsx"
 # Pasta de saída
-DEFAULT_OUTPUT_DIR = r"C:\Users\Micro\Documents\RSSI_to_AMR\experiments_archive\Exp_2DS_DS11_288Tests_autorun\out_DoE"  # <<-- PREENCHER: ex.: r"C:\Users\...\out_DoE"
+DEFAULT_OUTPUT_DIR = r"C:\Users\Micro\Documents\RSSI_to_AMR\DoE\out_DoE\v3"  # <<-- PREENCHER: ex.: r"C:\Users\...\out_DoE"
 
 # Nome do PDF dentro da pasta de saída
-DEFAULT_PDF_NAME = "relatorio_DOE_2DS_DS11_288Tests.pdf"
+DEFAULT_PDF_NAME = "relatorio_DOE_1DS_DS11e12.pdf"
 
 # Como montar o composto: "auto" | "column" | "metrics"
 DEFAULT_COMPOSITE_MODE = "column"

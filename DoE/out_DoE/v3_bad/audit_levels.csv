@@ -1,0 +1,8 @@
+column,n_levels,sample_levels
+model,2,"LSTM, GRU, nan"
+group_msec,4,"80.0, 40.0, 120.0, 100.0, nan"
+seconds_ahead,5,"4.0, 3.0, 6.0, 10.0, 8.0, nan"
+timesteps_orig,2,"60.0, 30.0, nan"
+Epochs,4,"20.0, 150.0, 50.0, 1000.0, nan"
+units_range,3,"16-256:16, 16-1024:16, 12-1024:16, nan"
+batch_size,2,"256.0, 1024.0, nan"

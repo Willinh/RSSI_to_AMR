@@ -1,0 +1,7 @@
+factor,mean_diff_(hi - lo)
+group_msec,0.0
+seconds_ahead,0.0
+timesteps_orig,0.0
+Epochs,0.0
+batch_size,0.0
+model,0.0

@@ -1,0 +1,6 @@
+python .\doe_analysis_rssi_v4.py `
+  --inputs "C:\Users\Micro\Documents\RSSI_to_AMR\DoE\data\Resultados_Testes_2DS1112_DoE_full_288.xlsx,C:\Users\Micro\Documents\RSSI_to_AMR\DoE\data\Resultados_Testes_2DS1211_DoE_full_288.xlsx" `
+  --output_dir "C:\Users\Micro\Documents\RSSI_to_AMR\DoE\output\Exp_2DS_DS11_288Tests_autorun\out_v4" `
+  --composite-col "Z-Score_Composite"
+
+

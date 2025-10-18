@@ -1,0 +1,6 @@
+Total rows: 39
+Valid rows used in OLS: 36
+Valid ratio: 0.923
+
+First columns:
+model, Z-Score_Composite, train_dataset, exp_dataset, group_msec, seconds_ahead, forecast_steps, timesteps_orig, Epochs, units_range, batch_size, best_layers, best_activation, best_optimizer, train_time_m, train_time_h, pred_time_m, step1_mae, step1_mse, step1_rmse, step1_r2, multi_mae, multi_mse, multi_rmse, multi_r2, Z_TIME, Z-MAE@1, Z-RMSE@1, Z-RMSE@1.1, Z-R²@1, Z-MAE@H, Z-MSE@H, Z-RMSE@H, Z-R²@H, __source__, _dataset_id_, Z_Composite_std

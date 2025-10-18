@@ -1,0 +1,2 @@
+Modelo,Resample (ms),Seconds to predict (s),Forecast steps,Timesteps,Epochs,Units (min-max:step),Batchsize,Feito?
+LSTM,100,3,30,60,20,16-64:16,8192,OK

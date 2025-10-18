@@ -1,0 +1,8 @@
+factor,type,levels,effect
+Epochs,range_max_min,"[20.0, 50.0, 150.0, 1000.0]",1.87127905849412
+units_range,range_max_min,"['12-1024:16', '16-1024:16', '16-256:16']",1.5143525690314787
+timesteps_orig,binary_hi_lo,"[30.0, 60.0]",1.2271405468083938
+group_msec,range_max_min,"[40.0, 80.0, 100.0, 120.0]",0.6986245897787976
+model,range_max_min,"['GRU', 'LSTM']",0.05779593103679748
+seconds_ahead,range_max_min,"[3.0, 4.0, 6.0, 8.0, 10.0]",2.9605947323337506e-16
+batch_size,binary_hi_lo,"[256.0, 1024.0]",-2.7108425984311184

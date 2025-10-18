@@ -31,6 +31,94 @@ def has_required_jsons(path: str) -> bool:
 
 ALIGN_TO_TARGET_TIME = True  # se False, volta ao alinhamento pelo fim da janela
 
+# === Alinhamento opcional só para visualização (gráfico temporal) ===
+VISUAL_SHIFT = True                 # habilita/desabilita o ajuste visual
+SHIFT_METHOD = "auto"               # "auto" (xcorr) ou "fixed"
+FIXED_SHIFT_STEPS = 0               # usado se SHIFT_METHOD == "fixed" (ex.: -6 adianta o predito 6 amostras)
+MAX_LAG_SEC = float(HSEC) if 'HSEC' in globals() else 5.0  # procura até o horizonte previsto
+
+
+def _best_lag_by_xcorr(y_true: np.ndarray, y_pred: np.ndarray, max_lag_samples: int) -> int:
+    """Retorna lag em amostras que maximiza a correlação (lag>0: predito atrasado; lag<0: adiantado)."""
+    y1 = np.asarray(y_true, float); y2 = np.asarray(y_pred, float)
+    best_lag, best_corr = 0, -np.inf
+    for lag in range(-max_lag_samples, max_lag_samples+1):
+        if lag < 0:   # pred adiantado -> cortar fim do pred
+            a = y1[-lag:]              # corta começo do true
+            b = y2[:len(a)]
+        elif lag > 0: # pred atrasado -> cortar começo do pred
+            a = y1[:-lag]
+            b = y2[lag:]
+        else:
+            a, b = y1, y2
+        n = min(len(a), len(b))
+        if n < 16: continue
+        a0 = a[:n] - a[:n].mean(); b0 = b[:n] - b[:n].mean()
+        den = (a0.std() * b0.std());
+        if den == 0: continue
+        corr = float((a0 @ b0) / (n * den))
+        if np.isfinite(corr) and corr > best_corr:
+            best_corr, best_lag = corr, lag
+    return best_lag
+
+def _apply_lag_for_plot(y_true, y_pred, t_axis, lag):
+    """Aplica o lag no par (true, pred) e corta t para manter comprimentos iguais."""
+    if lag < 0:   # pred adiantado -> atrasar no plot (cortar fim do pred)
+        y_pred_plot = y_pred[:len(y_pred)+lag]     # lag negativo
+        y_true_plot = y_true[-lag:][:len(y_pred_plot)]
+        t_plot      = t_axis[-lag:][:len(y_pred_plot)]
+    elif lag > 0: # pred atrasado -> adiantar no plot (cortar início do pred)
+        y_pred_plot = y_pred[lag:]
+        y_true_plot = y_true[:len(y_pred_plot)]
+        t_plot      = t_axis[lag:][:len(y_pred_plot)]
+    else:
+        y_true_plot, y_pred_plot, t_plot = y_true, y_pred, t_axis
+    m = min(len(y_true_plot), len(y_pred_plot), len(t_plot))
+    return y_true_plot[:m], y_pred_plot[:m], t_plot[:m]
+
+def _compute_lag_table(y_true_steps: np.ndarray, y_pred_steps: np.ndarray, sps: float, max_lag_s: float = "auto"):
+    """
+    y_*_steps: shape [N, n_steps] (cada coluna = passo j)
+    Retorna DataFrame com Horizon(s), Step, Lag(samples/s), Corr@lag (só p/ referência), MAE raw/alinhado.
+    """
+    assert y_true_steps.shape == y_pred_steps.shape and y_true_steps.ndim == 2
+    N, n_steps = y_true_steps.shape
+    if max_lag_s == "auto":
+        max_lag_samples = n_steps - 1
+    else:
+        max_lag_samples = int(round(float(max_lag_s) * sps))
+    horizons_s = np.arange(n_steps, dtype=float) / float(sps)
+
+    rows = []
+    for j in range(n_steps):
+        yt = np.asarray(y_true_steps[:, j], float)
+        yp = np.asarray(y_pred_steps[:, j], float)
+        lag = _best_lag_by_xcorr(yt, yp, max_lag_samples)
+        # métricas "cruas" (sem alinhamento) – NÃO usamos alinhadas para avaliação
+        mae_raw = float(np.mean(np.abs(yt - yp)))
+        # só para análise de sensibilidade/visual:
+        if lag < 0:
+            yp2 = yp[:len(yp)+lag]; yt2 = yt[-lag:][:len(yp2)]
+        elif lag > 0:
+            yp2 = yp[lag:]; yt2 = yt[:len(yp2)]
+        else:
+            yt2, yp2 = yt, yp
+        m = min(len(yt2), len(yp2))
+        mae_al = float(np.mean(np.abs(yt2[:m] - yp2[:m]))) if m else np.nan
+        corr   = np.corrcoef(yt2[:m] - np.mean(yt2[:m]), yp2[:m] - np.mean(yp2[:m]))[0,1] if m>1 else np.nan
+        rows.append({
+            "Step": j+1,
+            "Horizon (s)": horizons_s[j],
+            "Lag (samples)": lag,
+            "Lag (s)": lag/float(sps),
+            "Corr@lag": corr,
+            "MAE (raw)": mae_raw,
+            "MAE (aligned)": mae_al,
+            "ΔMAE (%)": 100.0*(mae_al - mae_raw)/mae_raw if mae_raw else np.nan,
+        })
+    df = pd.DataFrame(rows).sort_values("Horizon (s)").reset_index(drop=True)
+    return df
+
 
 def print_progress_bar(*args, **kwargs):
     # Mantido só para compat (não usamos)
@@ -54,6 +142,7 @@ def generate_report_pdf(experiment_folder: str) -> str:
 
     params = training_config.get("params", {}) or {}
     group_ms = int(params.get("group_msec", 100))  # fallback 100
+
 
     # >>> importante: alinhar o GROUP_MSEC do utils ao do experimento <<<
     if hasattr(U, "set_group_msec"):
@@ -323,15 +412,31 @@ def generate_report_pdf(experiment_folder: str) -> str:
         plt.xlabel("Time [s]"); plt.ylabel("RSSI"); plt.legend(); plt.grid(True, ls='--', alpha=0.5)
         plt.tight_layout(); pdf.savefig(); plt.close()
 
+        # --- ajuste visual opcional por lag (não altera métricas) ---
+        if VISUAL_SHIFT:
+            # amostras por segundo (tente tirar do config; se não tiver, use 1/Δt)
+            sps = float(SPS)  # já veio dos params (25 Hz)
+            max_lag_samples = int(round(MAX_LAG_SEC * sps))
+            best_lag = _best_lag_by_xcorr(y_true_last, y_pred_end, max_lag_samples)
+            y_true_last_plot, y_pred_end_plot, t_last_plot = _apply_lag_for_plot(y_true_last, y_pred_end, t_last,
+                                                                                 best_lag)
+            # Tempo relativo para o gráfico (só visual)
+            t_last_rel = t_last_plot - t_last_plot[0]
+
+        else:
+            y_true_last_plot, y_pred_end_plot, t_last_plot = y_true_last, y_pred_end, t_last
+
         # Página 4 — Last step no tempo (alinha início com offset)
         plt.figure(figsize=(12, 6))
-        plt.plot(t_last, y_true_last, label="Actual RSSI (Last Step)", alpha=0.8)
-        plt.plot(t_last, y_pred_end, label="Predicted RSSI (Last Step)", alpha=0.8)
-        plt.title(f"Actual vs Predicted RSSI (Last Step – step {forecast_steps} ≈ {HSEC:.1f} s)")
+        plt.plot(t_last_rel, y_true_last_plot, label="Actual RSSI (Last Step)", alpha=0.8)
+        plt.plot(t_last_rel, y_pred_end_plot, label="Predicted RSSI (Last Step)", alpha=0.8)
+        plt.title(f"Actual vs Predicted RSSI (Last Step – step {forecast_steps} ≈ {HSEC:.1f}s) "
+                  f"[lag={best_lag} samples ≈ {best_lag / sps:.2f}s]")
         plt.xlabel("Time [s]");
         plt.ylabel("RSSI");
         plt.legend();
         plt.grid(True, ls='--', alpha=0.5)
+
         plt.tight_layout();
         pdf.savefig();
         plt.close()

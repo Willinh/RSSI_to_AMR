@@ -20,9 +20,14 @@ import argparse, subprocess, sys, glob
 import pandas as pd
 GROUP_MSEC = getattr(U, "GROUP_MSEC", 100)
 
+#====== COMANDO PARA RODAR COMANDO DE AUTORUN NO TERMINAL ========================================
+# python main.py --autorun --plan "Plano_de_Testes_2DS_DoE_full_288.csv"
+# --------------------------------------------------------------------------------------------------
+
+
 # ========================== CONFIGURAÇÕES ==========================
 
-MODEL_TYPE = 'GRU'   # 'LSTM' ou 'GRU' ou 'BiLSTM' ou 'BiGRU' ou 'SimpleRNN'
+MODEL_TYPE = 'CNN'   # 'LSTM' ou 'GRU' ou 'BiLSTM' ou 'BiGRU' ou 'SimpleRNN'
 # Sequenciamento dos dados
 TIMESTEPS_ORIG = 60   # Número de passos de tempo para olhar para trás (default = 60)
 BATCH_SIZE = 8192      # Tamanho do batch durante o treino
